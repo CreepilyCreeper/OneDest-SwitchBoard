@@ -1,0 +1,5 @@
+name = "onedest-switchboard-auth"
+main = "src/worker/create_pr_worker.ts"
+compatibility_date = "2026-01-28"
+workers_dev = true
+account_id = "32d6ad3c4725cacc38c162cc2a3d19cf"

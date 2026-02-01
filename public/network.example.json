@@ -1,0 +1,85 @@
+{
+  "nodes": [
+    {
+      "id": "icenia_station",
+      "type": "station",
+      "name": "Icenia Central Station",
+      "coords": [0, 64, 0],
+      "exits": [
+        { "direction": "north", "onedest_args": ["barn"] },
+        { "direction": "south", "onedest_args": ["mount_augusta"] },
+        { "direction": "east", "onedest_args": ["pavia"] }
+      ]
+    },
+    {
+      "id": "barn_station",
+      "type": "station",
+      "name": "Barn",
+      "coords": [100, 64, -500]
+    },
+    {
+      "id": "mount_augusta_station",
+      "type": "station",
+      "name": "Mount Augusta",
+      "coords": [200, 64, 600]
+    },
+    {
+      "id": "pavia_station",
+      "type": "station",
+      "name": "Pavia",
+      "coords": [800, 64, 100]
+    }
+  ],
+  "edges": [
+    {
+      "id": "icenia_to_barn",
+      "from": "icenia_station",
+      "to": "barn_station",
+      "distance": 510,
+      "routing_weight": 510,
+      "geometry": [
+        [0, 64, 0],
+        [50, 64, -250],
+        [100, 64, -500]
+      ],
+      "segments": [
+        { "start_offset": 0, "end_offset": 255, "type": "coppered", "avg_speed": 8.0 },
+        { "start_offset": 255, "end_offset": 510, "type": "uncoppered", "avg_speed": 4.0 }
+      ],
+      "total_copper_coverage": 0.5
+    },
+    {
+      "id": "icenia_to_mount_augusta",
+      "from": "icenia_station",
+      "to": "mount_augusta_station",
+      "distance": 632,
+      "routing_weight": 632,
+      "geometry": [
+        [0, 64, 0],
+        [100, 64, 300],
+        [200, 64, 600]
+      ],
+      "segments": [
+        { "start_offset": 0, "end_offset": 632, "type": "coppered", "avg_speed": 8.0 }
+      ],
+      "total_copper_coverage": 1.0
+    },
+    {
+      "id": "icenia_to_pavia",
+      "from": "icenia_station",
+      "to": "pavia_station",
+      "distance": 806,
+      "routing_weight": 806,
+      "geometry": [
+        [0, 64, 0],
+        [400, 64, 50],
+        [800, 64, 100]
+      ],
+      "segments": [
+        { "start_offset": 0, "end_offset": 403, "type": "coppered", "avg_speed": 8.0 },
+        { "start_offset": 403, "end_offset": 806, "type": "coppered", "avg_speed": 8.0 }
+      ],
+      "total_copper_coverage": 1.0
+    }
+  ]
+}
