@@ -16,7 +16,7 @@ function RoundedTileLayer({ url }: { url: string }) {
   const map = useMap();
 
   useEffect(() => {
-    const RoundedTileLayerClass = L.TileLayer.extend({
+    const RoundedTileLayerClass: any = L.TileLayer.extend({
       getTileUrl: function (coords: L.Coords) {
         const zRounded = Math.round(coords.z);
         const x = coords.x;
