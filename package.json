@@ -1,5 +1,5 @@
 {
-  "name": "onedest-web",
+  "name": "onedest-switchboard",
   "version": "1.0.0",
   "description": "The workspace for OneDest rail maintainers",
   "main": "index.js",
@@ -14,7 +14,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/CreepilyCreeper/OneDest-Web.git"
+    "url": "git+https://github.com/CreepilyCreeper/onedest-switchboard.git"
   },
   "keywords": [],
   "author": "",
@@ -22,7 +22,7 @@
   "bugs": {
     "url": "https://github.com/CreepilyCreeper/OneDest-Web/issues"
   },
-  "homepage": "https://github.com/CreepilyCreeper/OneDest-Web#readme",
+  "homepage": "https://github.com/CreepilyCreeper/onedest-switchboard#readme",
   "dependencies": {
     "@octokit/rest": "^22.0.1",
     "leaflet": "^1.9.4",

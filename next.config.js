@@ -1,6 +1,8 @@
 /** @type {import('next').NextConfig} */
 // Default repo path used for GitHub Pages. Adjust if your repo name changes.
-const REPO_BASE = '/OneDest-SwitchBoard';
+// This should match the GitHub repo name (used as the Pages path).
+// Use lower-case kebab name for Pages path
+const REPO_BASE = '/onedest-switchboard';
 
 // Use explicit basePath/assetPrefix when building for production on GH Pages.
 const resolvedBase =
