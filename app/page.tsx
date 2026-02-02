@@ -2,13 +2,15 @@
 
 import React, { useEffect, useState } from "react";
 import dynamic from "next/dynamic";
-import type { EdgeDef } from "../src/lib/router";
+import type { EdgeDef, NodeDef } from "../src/lib/router";
+import RouterCard from "../src/components/RouterCard";
 
 // Dynamically import the Map component to avoid SSR issues with leaflet
 const MapClient = dynamic(() => import("../src/components/Map"), { ssr: false });
 
 export default function Page() {
-  const [network, setNetwork] = useState<{ edges: EdgeDef[] } | null>(null);
+  const [network, setNetwork] = useState<{ edges: EdgeDef[]; nodes: NodeDef[] } | null>(null);
+  const [selectedNode, setSelectedNode] = useState<NodeDef | null>(null);
   useEffect(() => {
     // Load example network from public folder with basePath support
     const basePath = process.env.NEXT_PUBLIC_BASE_PATH || '';
@@ -22,8 +24,19 @@ export default function Page() {
     <main style={{ height: "100vh", width: "100vw" }}>
       <h1 style={{ position: "absolute", zIndex: 1000, margin: 12 }}>OneDest SwitchBoard — Map</h1>
       <div style={{ height: "100%", width: "100%" }}>
-        <MapClient edges={network?.edges ?? []} />
+        <MapClient
+          edges={network?.edges ?? []}
+          nodes={network?.nodes ?? []}
+          onSelectNode={(node) => setSelectedNode(node)}
+        />
       </div>
+
+      {selectedNode && (
+        <RouterCard 
+          node={selectedNode} 
+          onClose={() => setSelectedNode(null)} 
+        />
+      )}
     </main>
   );
 }

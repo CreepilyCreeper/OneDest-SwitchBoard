@@ -9,7 +9,7 @@ import type { EdgeDef, Segment } from "../lib/router";
  * Renders an edge as multiple colored polylines according to its segments.
  *
  * - Assumes edge.geometry is an array of Vec3 [x,y,z] in world coords.
- * - Converts geometry to [lat, lng] pairs as [z, x] (simple mapping for demo).
+ * - Converts geometry to [lat, lng] pairs as [-z, x] (mapping for North=UP in CivMC).
  * - Splits the geometry proportionally according to segment offsets and draws each segment with color.
  *
  * Colors:
@@ -20,7 +20,7 @@ import type { EdgeDef, Segment } from "../lib/router";
 type Props = { edge: EdgeDef };
 
 function coordsToLatLngs(poly: [number, number, number][]) {
-  return poly.map((p) => [p[2], p[0]] as [number, number]);
+  return poly.map((p) => [-p[2], p[0]] as [number, number]);
 }
 
 /**
