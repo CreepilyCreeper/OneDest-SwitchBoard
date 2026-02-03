@@ -162,24 +162,24 @@ Developer            GitHub              GitHub Actions        GitHub Pages
 
 ```
 ┌──────────────────────────────────────────────────────────────┐
-│                    Security Boundaries                        │
+│                    Security Boundaries                       │
 ├──────────────────────────────────────────────────────────────┤
-│                                                               │
+│                                                              │
 │  Public (Client-Side)           Private (Server-Side)        │
-│  ┌────────────────────┐         ┌─────────────────────┐     │
-│  │ • GitHub Client ID │         │ • Client Secret     │     │
-│  │ • Worker URL       │         │   (Worker only)     │     │
-│  │ • OAuth state      │         │ • Access Tokens     │     │
-│  │ • Code verifier    │         │   (never exposed)   │     │
-│  │   (localStorage)   │         │                     │     │
-│  └────────────────────┘         └─────────────────────┘     │
-│           │                              │                    │
-│           │      Code + Verifier         │                    │
-│           └─────────────────────────────►│                    │
-│                                          │                    │
-│                    Token never           │                    │
-│                    sent to client        │                    │
-│                                                               │
+│  ┌────────────────────┐         ┌─────────────────────┐      │
+│  │ • GitHub Client ID │         │ • Client Secret     │      │
+│  │ • Worker URL       │         │   (Worker only)     │      │
+│  │ • OAuth state      │         │ • Access Tokens     │      │
+│  │ • Code verifier    │         │   (never exposed)   │      │
+│  │   (localStorage)   │         │                     │      │
+│  └────────────────────┘         └─────────────────────┘      │
+│           │                              │                   │
+│           │      Code + Verifier         │                   │
+│           └─────────────────────────────►│                   │
+│                                          │                   │
+│                    Token never           │                   │
+│                    sent to client        │                   │
+│                                                              │
 └──────────────────────────────────────────────────────────────┘
 ```
 
@@ -266,19 +266,19 @@ OneDest-SwitchBoard/
 ### Production Monitoring
 ```
 ┌─────────────────────────────────────────────────┐
-│ Monitoring Points                                │
+│ Monitoring Points                               │
 ├─────────────────────────────────────────────────┤
 │ 1. GitHub Actions logs                          │
 │    → Settings → Actions → Workflow runs         │
-│                                                  │
+│                                                 │
 │ 2. Cloudflare Worker logs                       │
 │    → Cloudflare Dashboard → Workers → Logs      │
-│                                                  │
+│                                                 │
 │ 3. Browser console (client errors)              │
-│    → F12 → Console                               │
-│                                                  │
+│    → F12 → Console                              │
+│                                                 │
 │ 4. GitHub Pages deployment                      │
-│    → Settings → Pages                            │
+│    → Settings → Pages                           │
 └─────────────────────────────────────────────────┘
 ```
 

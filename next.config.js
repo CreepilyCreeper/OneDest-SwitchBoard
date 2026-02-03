@@ -1,22 +1,38 @@
 /** @type {import('next').NextConfig} */
+// Debug: Log environment info
+console.log('=== NEXT.JS CONFIG DEBUG ===');
+console.log('NODE_ENV:', process.env.NODE_ENV);
+console.log('EXPORT_STATIC:', process.env.EXPORT_STATIC);
+console.log('NEXT_PUBLIC_BASE_PATH:', process.env.NEXT_PUBLIC_BASE_PATH);
+
 // Default repo path used for GitHub Pages. Adjust if your repo name changes.
 // This should match the GitHub repo name (used as the Pages path).
-// Use lower-case kebab name for Pages path
-const REPO_BASE = '/onedest-switchboard';
+// Use the GitHub Pages repo path (case-sensitive)
+const REPO_BASE = '/OneDest-SwitchBoard';
 
-// Use explicit basePath/assetPrefix when building for production on GH Pages.
-const resolvedBase =
-  process.env.NEXT_PUBLIC_BASE_PATH || (process.env.NODE_ENV === 'production' ? REPO_BASE : '');
+// In development, always use empty basePath
+// In production (static export), use the repo base path
+const isDevelopment = !process.env.NODE_ENV || process.env.NODE_ENV === 'development';
+const resolvedBase = isDevelopment 
+  ? '' 
+  : (process.env.NEXT_PUBLIC_BASE_PATH || REPO_BASE);
+
+console.log('isDevelopment:', isDevelopment);
+console.log('resolvedBase:', resolvedBase);
+console.log('=== END DEBUG ===');
 
 const nextConfig = {
-  output: 'export',
-  distDir: 'out',
+  ...(isDevelopment ? {} : { output: 'export', distDir: 'out' }),
   images: {
     unoptimized: true,
   },
   basePath: resolvedBase,
   assetPrefix: resolvedBase,
   trailingSlash: true,
+  // Turbopack configuration - set root to fix workspace detection
+  turbopack: {
+    root: __dirname,
+  },
   // Disable server-side features for static export
   reactStrictMode: true,
   // Environment variables will be baked in at build time
