@@ -17,7 +17,8 @@ interface EditorToolbarProps {
 export default function EditorToolbar({
     mode, setMode, canUndo, canRedo, onUndo, onRedo, onSave,
     snappingEnabled, setSnappingEnabled
-}: EditorToolbarProps) {
+    , viewMode, setViewMode
+}: EditorToolbarProps & { viewMode: 'group'|'copper'|'default'; setViewMode: (m: 'group'|'copper'|'default') => void }) {
 
     const tools: { id: EditorMode; label: string; icon?: string }[] = [
         { id: 'select', label: 'Select (S)' },
@@ -37,7 +38,7 @@ export default function EditorToolbar({
                 <button 
                     disabled={!canUndo} 
                     onClick={onUndo} 
-                    title="Undo (Ctrl+Z)"
+                    title="Undo (Ctrl+Shift+Z)"
                     style={{ padding: 4, cursor: canUndo ? 'pointer' : 'default', opacity: canUndo ? 1 : 0.5 }}
                 >
                     ↩️
@@ -89,6 +90,13 @@ export default function EditorToolbar({
                     />
                     Snap
                 </label>
+                <div style={{ marginTop: 8 }}>
+                    <div style={{ fontSize: 10, marginBottom: 4 }}>View</div>
+                    <select value={viewMode} onChange={e => setViewMode(e.target.value as any)} style={{ fontSize: 12 }}>
+                        <option value="group">Group</option>
+                        <option value="copper">Copper</option>
+                    </select>
+                </div>
             </div>
         </div>
     );

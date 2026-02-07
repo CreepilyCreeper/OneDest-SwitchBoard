@@ -39,6 +39,7 @@ export default function CADEditorPage() {
     const [mode, setMode] = useState<EditorMode>('select');
     const [selection, setSelection] = useState<{ type: 'node'|'edge'|'multi'|null, ids: string[] }>({ type: null, ids: [] });
     const [snappingEnabled, setSnappingEnabled] = useState(true);
+    const [viewMode, setViewMode] = useState<'group'|'copper'|'default'>('group');
     const fileInputRef = useRef<HTMLInputElement>(null);
 
     // Keyboard shortcuts
@@ -47,15 +48,15 @@ export default function CADEditorPage() {
             // Ignore if input focused
             if ((e.target as HTMLElement).tagName === 'INPUT' || (e.target as HTMLElement).tagName === 'TEXTAREA') return;
 
-            if (e.ctrlKey && e.key === 'z') {
+            // Ctrl+Shift+Z for undo (Windows/Linux), Ctrl+Y still for redo
+            if (e.ctrlKey && (e.key === 'Z' || e.key === 'z')) {
                 e.preventDefault();
                 actions.undo();
-            } else if (e.ctrlKey && e.key === 'y') {
+            } else if (e.ctrlKey && e.shiftKey && (e.key === 'Z' || e.key === 'z')) {
                 e.preventDefault();
                 actions.redo();
             } else if (e.key === 'Delete' || e.key === 'Backspace') {
                 if (selection.ids.length > 0) {
-                     // Confirm logic? nah standard CAD just deletes
                     selection.ids.forEach(id => {
                         if (selection.type === 'node') actions.deleteNode(id);
                         if (selection.type === 'edge') actions.deleteEdge(id);
@@ -66,6 +67,16 @@ export default function CADEditorPage() {
             else if (e.key === 'm') setMode('move');
             else if (e.key === 'n') setMode('node');
             else if (e.key === 'e') setMode('edge');
+
+            // Numeric hotkeys 1-5 for tools (1=select,2=move,3=node,4=edge,5=delete)
+            else if (e.key === '1') setMode('select');
+            else if (e.key === '2') setMode('move');
+            else if (e.key === '3') setMode('node');
+            else if (e.key === '4') setMode('edge');
+            else if (e.key === '5') setMode('delete');
+
+            // Toggle snapping with 0
+            else if (e.key === '0') setSnappingEnabled(v => !v);
         };
 
         window.addEventListener('keydown', handleKeyDown);
@@ -119,6 +130,7 @@ export default function CADEditorPage() {
                 onUndo={actions.undo} onRedo={actions.redo}
                 onSave={handleSave}
                 snappingEnabled={snappingEnabled} setSnappingEnabled={setSnappingEnabled}
+                viewMode={viewMode} setViewMode={setViewMode}
             />
 
             <input 
@@ -146,6 +158,7 @@ export default function CADEditorPage() {
                     actions={actions}
                     snappingEnabled={snappingEnabled}
                     snappingRatio="auto"
+                    viewMode={viewMode}
                 />
             </div>
 

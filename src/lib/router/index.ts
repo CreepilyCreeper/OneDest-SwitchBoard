@@ -24,11 +24,24 @@ export type EdgeDef = {
   from: string;
   to: string;
   distance: number; // total length in blocks
+  // optional: number of parallel tracks/lines represented by this edge
+  lanes?: number;
+  // spacing between lanes in blocks (perpendicular offset)
+  lane_spacing?: number;
   routing_weight?: number; // for pathfinding; default = distance
   segments?: Segment[]; // ordered, non-overlapping, covering [0,distance]
   total_copper_coverage?: number; // 0..1
   geometry?: Vec3[]; // polyline world coords from start to end (required for survey snapping)
   external?: boolean;
+  // Per-side lane coverage (se = left when following edge direction, nw = right)
+  laneCoverage?: LaneCoverage;
+};
+
+export type LaneCoverage = {
+  // 'se' = south/east side (maps to left when following edge direction)
+  se?: Segment[];
+  // 'nw' = north/west side (maps to right when following edge direction)
+  nw?: Segment[];
 };
 
 export type NodeDef = {
@@ -36,6 +49,13 @@ export type NodeDef = {
   type?: 'station' | 'junction' | 'other';
   exits?: Exit[];
   external?: boolean;
+  // World coordinates center of node: [x,y,z]
+  coords?: Vec3;
+  // Physical dimensions in blocks (x = width, z = depth)
+  width?: number;
+  depth?: number;
+  // Logical rail level / layer (integer) to represent stacked rails
+  level?: number;
   // extra metadata allowed
   [k: string]: any;
 };

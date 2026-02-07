@@ -56,7 +56,7 @@ export default function PropertyInspector({ graph, selection, updateNode, update
                     <div style={{ marginBottom: 12 }}>
                         <label style={{display:'block', fontSize: 12, color: '#aaa'}}>Group (Org)</label>
                         <input 
-                            value={node.group || ''}
+                            value={(node as any).group || ''}
                             onChange={e => updateNode(node.id, { group: e.target.value })}
                             style={{ width: '100%', background: '#444', border: '1px solid #555', color: 'white' }}
                         />

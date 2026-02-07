@@ -59,20 +59,44 @@ function updateConnectedEdges(
       // If it is complex, we might need to apply the delta? 
       // For now, let's assume straight lines for dynamic editing or just update end points
       
-      const p1 = (fromNode as any).coords; // NodeDef usually has coords, but type says [k:string]: any. 
+      const p1 = (fromNode as any).coords; // NodeDef usually has coords
       // Check NodeDef in lib: type NodeDef = { id, type, ... } . Where is coords? 
       // In the json data it has coords: [x,y,z]. In `page.tsx` EnhancedNodeDef has coords.
       // We assume coords exists.
       
       const p2 = (toNode as any).coords;
 
-      let newGeo = edge.geometry ? [...edge.geometry] : [p1, p2];
+      // helper: compute a boundary point on nodeA facing nodeB
+      const nodeBoundaryPointTowards = (nodeA: any, nodeB: any) => {
+        const a = nodeA.coords ?? [0, 0, 0];
+        const b = nodeB.coords ?? [0, 0, 0];
+        const cx = a[0];
+        const cz = a[2];
+        const y = a[1] ?? 0;
+        const halfW = (nodeA.width ?? 1) / 2;
+        const halfD = (nodeA.depth ?? 1) / 2;
+        const dx = b[0] - cx;
+        const dz = b[2] - cz;
+        if (Math.abs(dx) < 1e-9 && Math.abs(dz) < 1e-9) return [cx, y, cz];
+        const len = Math.hypot(dx, dz);
+        const ux = dx / len;
+        const uz = dz / len;
+        const sx = Math.abs(ux) < 1e-9 ? Number.POSITIVE_INFINITY : halfW / Math.abs(ux);
+        const sz = Math.abs(uz) < 1e-9 ? Number.POSITIVE_INFINITY : halfD / Math.abs(uz);
+        const s = Math.min(sx, sz);
+        return [cx + ux * s, y, cz + uz * s];
+      };
+
+      const endpointA = nodeBoundaryPointTowards(fromNode, toNode);
+      const endpointB = nodeBoundaryPointTowards(toNode, fromNode);
+
+      let newGeo = edge.geometry ? [...edge.geometry] : [endpointA, endpointB];
 
       if (fromMoved && newGeo.length > 0) {
-        newGeo[0] = p1;
+        newGeo[0] = endpointA;
       }
       if (toMoved && newGeo.length > 0) {
-        newGeo[newGeo.length - 1] = p2;
+        newGeo[newGeo.length - 1] = endpointB;
       }
       
       newEdges[edge.id] = {

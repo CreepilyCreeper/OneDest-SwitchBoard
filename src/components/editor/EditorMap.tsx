@@ -2,7 +2,7 @@
 
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import dynamic from 'next/dynamic';
-import { MapContainer, TileLayer, Marker, Polyline, useMapEvents, useMap, Circle, Popup } from 'react-leaflet';
+import { MapContainer, TileLayer, Marker, Polyline, useMapEvents, useMap, Circle, Popup, Polygon } from 'react-leaflet';
 import L from 'leaflet';
 import "leaflet/dist/leaflet.css";
 import SegmentedEdge from '../SegmentedEdge';
@@ -37,11 +37,65 @@ const selectedIcon = L.divIcon({
 // Helper to convert CivMC (x, y, z) to Leaflet (lat, lng)
 // lat = -z, lng = x
 function toLatLng(coords: Vec3): [number, number] {
-  return [-coords[2], coords[0]];
+    // Center the block: mcToLatLng(x,z) -> [-(z + 0.5), x + 0.5]
+    return [-(coords[2] + 0.5), coords[0] + 0.5];
 }
 
 function fromLatLng(lat: number, lng: number): Vec3 {
-  return [lng, 0, -lat];
+    // Reverse mcToLatLng: x = lng - 0.5, z = -lat - 0.5
+    return [lng - 0.5, 0, -lat - 0.5];
+}
+
+// Compute rectangle corners (latlngs) for a node given width/depth
+function nodeRectLatLngs(node: NodeDef) {
+    const coords = node.coords ?? [0, 0, 0];
+    const w = node.width ?? 1;
+    const d = node.depth ?? 1;
+    const halfW = w / 2;
+    const halfD = d / 2;
+    const cx = coords[0];
+    const cz = coords[2];
+    const y = coords[1] ?? 0;
+    const corners: Vec3[] = [
+        [cx - halfW, y, cz - halfD],
+        [cx + halfW, y, cz - halfD],
+        [cx + halfW, y, cz + halfD],
+        [cx - halfW, y, cz + halfD],
+    ];
+    return corners.map(c => toLatLng(c));
+}
+
+// Compute a point on the boundary of nodeA rectangle that faces nodeB center
+function nodeBoundaryPointTowards(nodeA: NodeDef, nodeB: NodeDef) {
+    const a = nodeA.coords ?? [0, 0, 0];
+    const b = nodeB.coords ?? [0, 0, 0];
+    const cx = a[0];
+    const cz = a[2];
+    const y = a[1] ?? 0;
+    const halfW = (nodeA.width ?? 1) / 2;
+    const halfD = (nodeA.depth ?? 1) / 2;
+
+    const dx = b[0] - cx;
+    const dz = b[2] - cz;
+    // If same position, return center
+    if (Math.abs(dx) < 1e-9 && Math.abs(dz) < 1e-9) return [cx, y, cz] as Vec3;
+
+    const ux = dx / Math.hypot(dx, dz);
+    const uz = dz / Math.hypot(dx, dz);
+
+    // compute scale to hit rectangle boundary
+    const sx = Math.abs(ux) < 1e-9 ? Number.POSITIVE_INFINITY : halfW / Math.abs(ux);
+    const sz = Math.abs(uz) < 1e-9 ? Number.POSITIVE_INFINITY : halfD / Math.abs(uz);
+    const s = Math.min(sx, sz);
+
+    return [cx + ux * s, y, cz + uz * s] as Vec3;
+}
+
+// produce simple straight geometry connecting the two node boundary points
+function geometryBetweenNodes(a: NodeDef, b: NodeDef) {
+    const pA = nodeBoundaryPointTowards(a, b);
+    const pB = nodeBoundaryPointTowards(b, a);
+    return [pA, pB];
 }
 
 function InteractionLayer({ 
@@ -64,11 +118,14 @@ function InteractionLayer({
     const map = useMap();
     const [draftEdgeStart, setDraftEdgeStart] = useState<string | null>(null);
     const [mousePos, setMousePos] = useState<Vec3 | null>(null);
+    const draggingRef = useRef<Set<string>>(new Set());
+    const [tempPositions, setTempPositions] = useState<Record<string, Vec3>>({});
 
     useMapEvents({
         click: (e) => {
             if (mode === 'node') {
-                const pos = fromLatLng(e.latlng.lat, e.latlng.lng);
+                let pos = fromLatLng(e.latlng.lat, e.latlng.lng);
+                if (snappingEnabled) pos = snapToGrid(pos);
                 const id = `node_${Date.now()}`;
                 actions.addNode({
                     id,
@@ -100,15 +157,19 @@ function InteractionLayer({
                          Math.pow((fromNode as any).coords[2] - pos[2], 2)
                      );
 
-                     actions.addEdge({
-                         id: `edge_${Date.now()}`,
-                         from: draftEdgeStart,
-                         to: newNodeId,
-                         distance: dist,
-                         is_external: false,
-                         segments: [],
-                         geometry: [(fromNode as any).coords, pos]
-                     });
+                         // compute geometry clipped to node bounds
+                         const newNode = { id: newNodeId, coords: pos } as NodeDef;
+                         const geom = geometryBetweenNodes(fromNode, newNode);
+
+                         actions.addEdge({
+                             id: `edge_${Date.now()}`,
+                             from: draftEdgeStart,
+                             to: newNodeId,
+                             distance: dist,
+                             is_external: false,
+                             segments: [],
+                             geometry: geom
+                         });
                      
                      // Continue chain
                      setDraftEdgeStart(newNodeId);
@@ -122,24 +183,28 @@ function InteractionLayer({
         },
         mousemove: (e) => {
             const rawPos = fromLatLng(e.latlng.lat, e.latlng.lng);
-            
-            // Handle Snapping
+
+            // Default to raw
+            let outPos = rawPos;
+
+            // Handle Snapping: ratio snap when drafting an edge, but always snap to integer grid for nodes/corners
             if (snappingEnabled && draftEdgeStart && graph.nodes[draftEdgeStart]) {
                  const startNode = graph.nodes[draftEdgeStart];
                  const startPos = (startNode as any).coords;
-                 
-                 // How do we inject the "Ratio" constraint? The helper function iterates all ratios.
-                 // If we want to restriction to "Horizontal/Vertical" or specific ratios, we filter the helper?
-                 // For now, use the helper's full list or filter if necessary. 
-                 // The prompt asked for "ratios such as...". We can just use the best fit.
-                 
-                 const snap = snapToRatio(startPos, rawPos, 50); // 50 blocks threshold
+                 const snap = snapToRatio(startPos, rawPos, 50);
                  if (snap) {
-                     setMousePos(snap.point);
+                     // Also snap to integer grid (Minecraft blocks)
+                     outPos = [Math.round(snap.point[0]), snap.point[1], Math.round(snap.point[2])];
+                     setMousePos(outPos);
                      return;
                  }
             }
-            setMousePos(rawPos);
+
+            if (snappingEnabled) {
+                outPos = [Math.round(rawPos[0]), rawPos[1], Math.round(rawPos[2])];
+            }
+
+            setMousePos(outPos);
         }
     });
 
@@ -170,8 +235,8 @@ function InteractionLayer({
                          to: id,
                          distance: dist,
                          is_external: false,
-                         segments: [],
-                         geometry: [(fromNode as any).coords, (toNode as any).coords]
+                        segments: [],
+                        geometry: geometryBetweenNodes(fromNode, toNode)
                      });
                 }
                 setDraftEdgeStart(null);
@@ -193,30 +258,48 @@ function InteractionLayer({
         }
     };
 
-    const handleNodeDrag = (id: string, e: L.DragEndEvent | L.LeafletMouseEvent) => {
-        // Drag end events may not include `latlng` directly; extract safely.
+    // Helpers for grid snapping
+    const snapToGrid = (p: Vec3) => [Math.round(p[0]), p[1], Math.round(p[2])] as Vec3;
+
+    const handleMarkerDragStart = (id: string) => {
+        draggingRef.current.add(id);
+        setTempPositions(prev => ({ ...prev, [id]: (graph.nodes[id] as any).coords }));
+    };
+
+    const handleMarkerDrag = (id: string, e: any) => {
         let latlng: L.LatLng | undefined;
-        if ((e as any).latlng) {
-            latlng = (e as any).latlng;
-        } else if ((e as any).target && typeof (e as any).target.getLatLng === 'function') {
-            latlng = (e as any).target.getLatLng();
+        if (e && e.latlng) latlng = e.latlng;
+        else if (e && e.target && typeof e.target.getLatLng === 'function') latlng = e.target.getLatLng();
+        if (!latlng) return;
+        let newPos = fromLatLng(latlng.lat, latlng.lng);
+        if (snappingEnabled) newPos = snapToGrid(newPos);
+        setTempPositions(prev => ({ ...prev, [id]: newPos }));
+    };
+
+    const handleMarkerDragEnd = (id: string, e: any) => {
+        // Finalize position
+        let latlng: L.LatLng | undefined;
+        if (e && e.latlng) latlng = e.latlng;
+        else if (e && e.target && typeof e.target.getLatLng === 'function') latlng = e.target.getLatLng();
+        if (!latlng) {
+            // cleanup
+            draggingRef.current.delete(id);
+            setTempPositions(prev => { const c = { ...prev }; delete c[id]; return c; });
+            return;
         }
 
-        if (!latlng) return;
+        let newPos = fromLatLng(latlng.lat, latlng.lng);
+        if (snappingEnabled) newPos = snapToGrid(newPos);
 
-        const newPos = fromLatLng(latlng.lat, latlng.lng);
-
-        // Calculate delta
         const node = graph.nodes[id];
         if (!node) return;
-        const oldPos = (node as any).coords;
+        const oldPos = (node as any).coords as Vec3;
+
         const dx = newPos[0] - oldPos[0];
         const dy = newPos[1] - oldPos[1];
         const dz = newPos[2] - oldPos[2];
 
-        // Apply to ALL selected nodes
         const deltas: Record<string, [number, number, number]> = {};
-        
         if (selection.ids.includes(id)) {
             selection.ids.forEach(selId => {
                 deltas[selId] = [dx, dy, dz];
@@ -226,7 +309,28 @@ function InteractionLayer({
         }
 
         actions.moveNodes(deltas);
+
+        // cleanup temp state
+        draggingRef.current.delete(id);
+        setTempPositions(prev => { const c = { ...prev }; delete c[id]; return c; });
     };
+
+    // overlay info
+    const overlayInfo = (() => {
+        if (!mousePos) return null;
+        const coordsText = `${mousePos[0].toFixed(0)}, ${mousePos[2].toFixed(0)}`;
+        let angle: number | null = null;
+        let ratio: string | undefined;
+        if (draftEdgeStart && graph.nodes[draftEdgeStart]) {
+            const start = (graph.nodes[draftEdgeStart] as any).coords as Vec3;
+            const dx = mousePos[0] - start[0];
+            const dz = mousePos[2] - start[2];
+            angle = Math.atan2(dz, dx) * (180 / Math.PI);
+            const snap = snapToRatio(start, mousePos, 50);
+            if (snap) ratio = snap.ratio;
+        }
+        return { coordsText, angle: angle != null ? angle.toFixed(1) : null, ratio };
+    })();
 
     return (
         <>
@@ -246,22 +350,41 @@ function InteractionLayer({
                  const isSelected = selection.ids.includes(n.id);
                  const pos = (n as any).coords;
                  if (!pos) return null;
+                 const currentPos = tempPositions[n.id] ?? pos;
 
                  return (
-                     <Marker
-                        key={n.id}
-                        position={toLatLng(pos)}
-                        icon={isSelected ? selectedIcon : nodeIcon}
-                        draggable={mode === 'move' || (mode === 'select' && isSelected)}
-                        eventHandlers={{
-                            click: (e) => handleNodeClick(n.id, e),
-                            dragend: (e) => handleNodeDrag(n.id, e)
-                        }}
-                     >
-                        {(mode === 'select') && <Popup>{n.name || n.id}</Popup>}
-                     </Marker>
+                     <React.Fragment key={n.id}>
+                        {/* Rectangle showing physical footprint */}
+                        <Polygon
+                            positions={nodeRectLatLngs(n as NodeDef)}
+                            pathOptions={{ color: isSelected ? '#ffcc00' : '#ffffff', weight: 2, fillOpacity: 0.15, fillColor: isSelected ? '#ffcc00' : '#444' }}
+                        />
+
+                        <Marker
+                            position={toLatLng(currentPos)}
+                            icon={isSelected ? selectedIcon : nodeIcon}
+                            draggable={mode === 'move' || (mode === 'select' && isSelected)}
+                            eventHandlers={{
+                                click: (e) => handleNodeClick(n.id, e),
+                                dragstart: () => handleMarkerDragStart(n.id),
+                                drag: (e) => handleMarkerDrag(n.id, e),
+                                dragend: (e) => handleMarkerDragEnd(n.id, e)
+                            }}
+                        >
+                            {(mode === 'select') && <Popup>{n.name || n.id}</Popup>}
+                        </Marker>
+                     </React.Fragment>
                  );
             })}
+
+            {/* Small overlay showing snap/coords */}
+            {overlayInfo && (
+                <div style={{ position: 'absolute', right: 10, bottom: 10, zIndex: 1200, background: 'rgba(0,0,0,0.6)', color: '#fff', padding: '6px 8px', borderRadius: 6, fontSize: 12 }}>
+                    <div><strong>Coords:</strong> {overlayInfo.coordsText}</div>
+                    {overlayInfo.ratio && <div><strong>Snap:</strong> {overlayInfo.ratio}</div>}
+                    {overlayInfo.angle !== null && <div><strong>Angle:</strong> {overlayInfo.angle}°</div>}
+                </div>
+            )}
         </>
     );
 }
@@ -277,10 +400,15 @@ function RoundedTileLayer({ url }: { url: string }) {
                 const x = (coords as any).x;
                 const y = (coords as any).y;
 
+                // The CivMC tile server uses z values from 0 down to -5 (0, -1, -2...)
+                // Map Leaflet's zoom to server zoom: keep 0 as 0, and invert positive zooms to negative.
+                // Use Leaflet's zoom directly as server z (server provides tiles for z values 0 down to -5).
+                const serverZ = zRounded;
+
                 let outUrl = (this as any)._url as string;
 
-                if (outUrl.includes('z{z}')) outUrl = outUrl.replace('z{z}', `z${zRounded}`);
-                else outUrl = outUrl.replace('{z}', String(zRounded));
+                if (outUrl.includes('z{z}')) outUrl = outUrl.replace('z{z}', `z${serverZ}`);
+                else outUrl = outUrl.replace('{z}', String(serverZ));
 
                 if (outUrl.includes('{x},{y}')) outUrl = outUrl.replace('{x},{y}', `${x},${y}`);
                 else if (outUrl.includes('{x}/{y}')) outUrl = outUrl.replace('{x}/{y}', `${x},${y}`);
@@ -304,6 +432,7 @@ function RoundedTileLayer({ url }: { url: string }) {
             minZoom: -5,
             maxZoom: 6,
             tileSize: 256,
+            maxNativeZoom: 0,
             noWrap: true,
         });
 
@@ -328,7 +457,7 @@ function RoundedTileLayer({ url }: { url: string }) {
 
 export default function EditorMap({ 
     graph, mode, selection, setSelection, actions,
-    snappingEnabled, snappingRatio
+    snappingEnabled, snappingRatio, viewMode
 }: any) {
     const nodesList = useMemo(() => Object.values(graph.nodes), [graph.nodes]);
     const edgesList = useMemo(() => Object.values(graph.edges), [graph.edges]) as any[];
@@ -355,17 +484,17 @@ export default function EditorMap({
             {/* Static Edges (Visual) */}
             {edgesList.map((e) => {
                 const isSelected = selection.ids.includes(e.id);
-                // Highlight color if selected
-                // We wrap SegmentedEdge or custom render
                 return (
-                     <React.Fragment key={e.id}>
-                         {e.geometry && (
-                             <Polyline 
+                    <React.Fragment key={e.id}>
+                        {/* Use SegmentedEdge for full-featured rendering (handles segments and corners) */}
+                        <g>
+                            <SegmentedEdge edge={e} viewMode={viewMode} />
+                        </g>
+                        {/* highlight overlay if selected (drawn on top) */}
+                        {isSelected && e.geometry && (
+                            <Polyline
                                 positions={e.geometry.map((p: any) => toLatLng(p))}
-                                pathOptions={{ 
-                                    color: isSelected ? 'yellow' : (e.color || '#3388ff'),
-                                    weight: isSelected ? 6 : 3
-                                }}
+                                pathOptions={{ color: 'yellow', weight: 6, opacity: 0.9 }}
                                 eventHandlers={{
                                     click: (ev) => {
                                         L.DomEvent.stopPropagation(ev);
@@ -376,9 +505,9 @@ export default function EditorMap({
                                         }
                                     }
                                 }}
-                             />
-                         )}
-                     </React.Fragment>
+                            />
+                        )}
+                    </React.Fragment>
                 );
             })}
 
